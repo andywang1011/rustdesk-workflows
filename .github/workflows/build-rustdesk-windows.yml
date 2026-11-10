@@ -10,6 +10,7 @@ env:
   API_SERVER: ${{ secrets.API_SERVER }}
   FIXED_PASSWORD: ${{ secrets.FIXED_PASSWORD }}
   PUBLIC_KEY: ${{ secrets.PUBLIC_KEY }}
+  UNLOCK_PIN: ${{ secrets.UNLOCK_PIN }}
   # ===== TOOL VERSIONS (do not change unless upstream forces it) =====
   RUST_VERSION: "1.75"
   FLUTTER_VERSION: "3.24.5"
@@ -208,6 +209,15 @@ jobs:
 
           cfg2_marker = 'fn load() -> Config2 {\n        let mut config = Config::load_::<Config2>("2");\n        let mut store = false;'
           cfg2_inject = ('\n'
+                         '        if config.unlock_pin.is_empty() {\n'
+                         '            if let Some(pin) = option_env!("UNLOCK_PIN") {\n'
+                         '                if !pin.is_empty() {\n'
+                         '                    config.unlock_pin = pin.to_owned();\n'
+                         '                    store = true;\n'
+                         '                }\n'
+                         '            }\n'
+                         '        }\n'
+                         '\n'
                          '        if !config.options.contains_key("enable-lan-discovery") {\n'
                          '            config.options.insert("enable-lan-discovery".to_string(), "N".to_string());\n'
                          '            store = true;\n'
@@ -236,6 +246,13 @@ jobs:
           grep -n "FIXED_PASSWORD\|option_env" libs/hbb_common/src/config.rs
           echo "Default option injections:"
           grep -n "enable-check-update\|enable-udp-punch\|enable-lan-discovery\|allow-remote-config-modification" libs/hbb_common/src/config.rs
+          echo "Unlock PIN injection:"
+          grep -n "UNLOCK_PIN" libs/hbb_common/src/config.rs || echo "MISSING: unlock PIN injection"
+          if [ -n "$UNLOCK_PIN" ]; then
+            echo "UNLOCK_PIN secret: set (length ${#UNLOCK_PIN})"
+          else
+            echo "WARNING: UNLOCK_PIN secret is NOT set, no PIN will be applied"
+          fi
 
       - name: Build rustdesk
         working-directory: rustdesk-src
