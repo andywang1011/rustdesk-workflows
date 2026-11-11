@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       rustdesk_ref:
-        description: "RustDesk 源码版本：正式版 tag（如 1.5.1）、分支或 commit SHA"
+        description: "RustDesk 源码版本：正式版 tag、分支或 commit SHA（默认值见输入框）"
         required: true
         type: string
         default: "1.5.1"
@@ -38,13 +38,12 @@ jobs:
         env:
           RUSTDESK_REF: ${{ inputs.rustdesk_ref }}
         run: |
-          REF="${RUSTDESK_REF:-1.5.1}"
           git clone --recurse-submodules https://github.com/rustdesk/rustdesk.git rustdesk-src
-          git -C rustdesk-src checkout "$REF"
+          git -C rustdesk-src checkout "$RUSTDESK_REF"
           git -C rustdesk-src submodule update --init --recursive
           SHA=$(git -C rustdesk-src rev-parse HEAD)
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
-          echo "RustDesk ref '$REF' resolved to $SHA"
+          echo "RustDesk ref '$RUSTDESK_REF' resolved to $SHA"
           grep -m1 '^version' rustdesk-src/Cargo.toml
 
       - name: Install prerequisites
@@ -105,14 +104,13 @@ jobs:
         # always build the same source even when rustdesk_ref is a branch.
         shell: bash
         env:
+          RUSTDESK_REF: ${{ inputs.rustdesk_ref }}
           RUSTDESK_SHA: ${{ needs.generate-bridge.outputs.rustdesk_sha }}
-          RUSTDESK_INPUT_REF: ${{ inputs.rustdesk_ref }}
         run: |
-          REF="${RUSTDESK_SHA:-${RUSTDESK_INPUT_REF:-1.5.1}}"
           git clone --recurse-submodules https://github.com/rustdesk/rustdesk.git rustdesk-src
-          git -C rustdesk-src checkout "$REF"
+          git -C rustdesk-src checkout "$RUSTDESK_SHA"
           git -C rustdesk-src submodule update --init --recursive
-          echo "RustDesk requested ref '$RUSTDESK_INPUT_REF', built $(git -C rustdesk-src rev-parse HEAD)"
+          echo "RustDesk requested ref '$RUSTDESK_REF', built $(git -C rustdesk-src rev-parse HEAD)"
           grep -m1 '^version' rustdesk-src/Cargo.toml
 
       - uses: microsoft/setup-msbuild@v2

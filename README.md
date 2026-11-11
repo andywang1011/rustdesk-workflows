@@ -70,6 +70,9 @@
 `git submodule update --init --recursive`，让 `libs/hbb_common` 子模块跟随所选版本。
 构建日志会打印实际版本号（`Cargo.toml`）与 commit SHA，便于核对产物来源。
 
+默认版本只在 `workflow_dispatch.inputs.rustdesk_ref.default` 定义一处，构建脚本内不写死版本号；
+要更换默认版本，改这一处 default 即可。
+
 > 切到 `1.4.x` 及更早 tag 前需重新核对工具链版本与补丁 marker：
 > 补丁用 `if marker in content` 静默匹配，不命中不会报错，定制项会悄悄丢失。
 > 自定义 Flutter engine 仍从 `rustdesk/engine` 的 `main` release 拉取，是唯一未随版本锁定的外部依赖。
