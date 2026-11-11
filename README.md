@@ -15,7 +15,8 @@
 | `FIXED_PASSWORD` | 固定无人值守密码（可选） |
 | `UNLOCK_PIN` | 设置页解锁 PIN（可选，明文注入，各机器自行加密） |
 
-源码基于上游 `rustdesk/rustdesk`（master）构建，编译后的客户端使用上述固定密码连接指定服务器。
+源码基于上游 `rustdesk/rustdesk` 的**指定版本**构建（手动运行时选择，默认正式版 `1.5.1`），
+编译后的客户端使用上述固定密码连接指定服务器。
 
 ## 自定义默认设置
 
@@ -53,7 +54,26 @@
 ## 构建
 
 工作流为**手动触发**（`workflow_dispatch`），推送到 `main` 不会自动构建。
-需要新客户端时，在仓库 **Actions** 页手动运行 `Build RustDesk Windows`；
+需要新客户端时，在仓库 **Actions** 页手动运行 `Build RustDesk Windows`，
+并填写输入项 `rustdesk_ref`（RustDesk 源码版本）：
+
+| 可填值 | 说明 |
+| --- | --- |
+| `1.5.1`（默认） | 最新正式版，推荐用于分发 |
+| `1.5.0` / `1.4.9` 等 | 其它正式版 tag |
+| `1.5.3` | 预览版（prerelease），非稳定版 |
+| `master` 或分支名 | 上游开发版，内容随上游提交漂移 |
+| commit SHA | 完全可复现的某个提交 |
+
+`generate-bridge` 会先把该 ref 解析成确定的 commit SHA，`build-windows` 固定使用同一 SHA，
+两个作业不会因构建期间上游有新提交而错配；checkout 后会执行
+`git submodule update --init --recursive`，让 `libs/hbb_common` 子模块跟随所选版本。
+构建日志会打印实际版本号（`Cargo.toml`）与 commit SHA，便于核对产物来源。
+
+> 切到 `1.4.x` 及更早 tag 前需重新核对工具链版本与补丁 marker：
+> 补丁用 `if marker in content` 静默匹配，不命中不会报错，定制项会悄悄丢失。
+> 自定义 Flutter engine 仍从 `rustdesk/engine` 的 `main` release 拉取，是唯一未随版本锁定的外部依赖。
+
 工作流包含两个作业（`generate-bridge` → `build-windows`），产物 `.exe`
 在对应运行记录的工件（Artifacts）中下载。
 

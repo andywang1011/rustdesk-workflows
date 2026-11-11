@@ -2,6 +2,12 @@ name: Build RustDesk Windows
 
 on:
   workflow_dispatch:
+    inputs:
+      rustdesk_ref:
+        description: "RustDesk 源码版本：正式版 tag（如 1.5.1）、分支或 commit SHA"
+        required: true
+        type: string
+        default: "1.5.1"
 
 env:
   # ===== VALUES are read from GitHub Secrets (set by the build script) =====
@@ -24,9 +30,22 @@ env:
 jobs:
   generate-bridge:
     runs-on: ubuntu-22.04
+    outputs:
+      rustdesk_sha: ${{ steps.checkout-src.outputs.sha }}
     steps:
       - name: Checkout RustDesk source
-        run: git clone --recurse-submodules https://github.com/rustdesk/rustdesk.git rustdesk-src
+        id: checkout-src
+        env:
+          RUSTDESK_REF: ${{ inputs.rustdesk_ref }}
+        run: |
+          REF="${RUSTDESK_REF:-1.5.1}"
+          git clone --recurse-submodules https://github.com/rustdesk/rustdesk.git rustdesk-src
+          git -C rustdesk-src checkout "$REF"
+          git -C rustdesk-src submodule update --init --recursive
+          SHA=$(git -C rustdesk-src rev-parse HEAD)
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "RustDesk ref '$REF' resolved to $SHA"
+          grep -m1 '^version' rustdesk-src/Cargo.toml
 
       - name: Install prerequisites
         run: |
@@ -82,7 +101,19 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Checkout RustDesk source
-        run: git clone --recurse-submodules https://github.com/rustdesk/rustdesk.git rustdesk-src
+        # Pin to the exact commit resolved by generate-bridge, so both jobs
+        # always build the same source even when rustdesk_ref is a branch.
+        shell: bash
+        env:
+          RUSTDESK_SHA: ${{ needs.generate-bridge.outputs.rustdesk_sha }}
+          RUSTDESK_INPUT_REF: ${{ inputs.rustdesk_ref }}
+        run: |
+          REF="${RUSTDESK_SHA:-${RUSTDESK_INPUT_REF:-1.5.1}}"
+          git clone --recurse-submodules https://github.com/rustdesk/rustdesk.git rustdesk-src
+          git -C rustdesk-src checkout "$REF"
+          git -C rustdesk-src submodule update --init --recursive
+          echo "RustDesk requested ref '$RUSTDESK_INPUT_REF', built $(git -C rustdesk-src rev-parse HEAD)"
+          grep -m1 '^version' rustdesk-src/Cargo.toml
 
       - uses: microsoft/setup-msbuild@v2
 
@@ -237,6 +268,9 @@ jobs:
         shell: bash
         working-directory: rustdesk-src
         run: |
+          echo "=== RustDesk source version ==="
+          grep -m1 '^version' Cargo.toml
+          git rev-parse HEAD
           echo "=== Checking config.rs patches ==="
           echo "ID server set:"
           grep -c "PROD_RENDEZVOUS_SERVER" libs/hbb_common/src/config.rs
